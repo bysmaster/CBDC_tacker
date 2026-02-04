@@ -1,0 +1,12 @@
+feedparser
+requests
+beautifulsoup4
+python-dateutil
+PyPDF2
+playwright
+selenium
+undetected-chromedriver
+lxml
+python-docx
+pandas
+google-generativeai

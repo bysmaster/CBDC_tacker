@@ -1,0 +1,65 @@
+name: Daily CBDC Monitor
+
+on:
+  schedule:
+    # Beijing Time (UTC+8) 16:00 -> UTC 08:00
+    - cron: '0 8 * * *'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  run-monitor:
+    name: Run CBDC Monitor
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          
+      - name: Verify python-docx installation
+        run: |
+          python -c "import docx; print('python-docx installed successfully')"
+          
+      - name: Run Unit Tests
+        run: |
+          python -m unittest discover tests
+          
+      - name: Install Playwright Browsers
+        run: |
+          playwright install chromium
+          playwright install-deps chromium
+
+      - name: Inject API Keys
+        run: |
+          echo "ZAI_API_KEY=${{ secrets.ZAI_API_KEY }}" >> $GITHUB_ENV
+          echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}" >> $GITHUB_ENV
+
+      - name: Run Pipeline
+        env:
+          SILICON_KEY: ${{ secrets.SILICON_KEY }}
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          PYTHONUNBUFFERED: 1
+        run: |
+          python src/main.py
+          
+      - name: Upload Report Artifacts
+        if: success() || failure()  # Upload even if script errors halfway
+        uses: actions/upload-artifact@v4
+        with:
+          name: cbdc-reports
+          path: |
+            data/reports/
+            data/*.csv
+          retention-days: 5
