@@ -39,17 +39,16 @@ jobs:
           playwright install chromium
           playwright install-deps chromium
 
-      - name: Inject API Keys
-        run: |
-          echo "ZAI_API_KEY=${{ secrets.ZAI_API_KEY }}" >> $GITHUB_ENV
-          echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}" >> $GITHUB_ENV
-
       - name: Run Pipeline
         env:
-          SILICON_KEY: ${{ secrets.SILICON_KEY }}
+          # AI Service Keys
+          ZAI_API_KEY: ${{ secrets.ZAI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          # Email Configuration
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          # System Settings
           PYTHONUNBUFFERED: 1
         run: |
           python src/main.py
