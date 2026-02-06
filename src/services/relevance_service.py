@@ -76,26 +76,25 @@ class RelevanceService:
 
         # 2. Prepare Prompt
         prompt = f"""
-        请对以下金融资讯内容进行全面分析，判断是否与各国央行数字货币(CBDC)相关。
-        
+        你是一位服务于人民银行总行的资深金融情报分析师。请对以下金融资讯进行深度研判，判断是否涉及央行数字货币(CBDC)领域。
+
+        【资讯内容】
         Title: {title}
         Abstract: {abstract}
         Content Sample: {str(content)[:1000]}
         
-        评估标准：
-        1. 是否明确提及CBDC (如 e-CNY, Digital Euro, Digital Pound, Digital Rupee 等)。
-        2. 是否讨论数字货币政策、监管框架或法律修订。
-        3. 是否涉及央行数字货币的技术基础设施 (如 DLT, RLN, Tokenized Deposits) 或试点项目。
-        4. 排除标准：仅提及一般加密货币价格波动、常规货币供应量数据、传统银行人事变动、或非CBDC相关的数字贷款/反洗钱处罚。
+        【研判标准】
+        1. 核心相关性：是否明确提及CBDC (如数字人民币/e-CNY、数字欧元、数字美元等)、数字货币政策框架、法律监管或技术基础设施(DLT/RLN/Tokenized Deposits)。
+        2. 排除标准：仅提及加密货币(如比特币)价格波动、一般性货币供应数据、传统银行人事变动或非CBDC相关的反洗钱/数字信贷业务。
 
-        输出格式：
-        请返回且仅返回一个有效的 JSON 对象：
+        【输出要求】
+        请返回且仅返回一个标准 JSON 对象（不要包含Markdown代码块）：
         {{
             "is_relevant": true/false,
-            "confidence_score": 0.85,
-            "title_cn": "中文标题",
-            "summary": "中文摘要 (<300字)",
-            "reasoning": "中文判断依据 (<30字)"
+            "confidence_score": 0.95,
+            "title_cn": "中文标题（请按正式公文风格翻译，准确简练）",
+            "summary": "中文摘要（请按《金融时报》或政府内参简报风格撰写。使用第三人称，客观陈述事实，避免使用'本文'、'我'等主观词汇。重点提炼政策动向、核心观点或关键数据。字数控制在200-300字。）",
+            "reasoning": "研判依据（简明扼要，<30字）"
         }}
         """
 

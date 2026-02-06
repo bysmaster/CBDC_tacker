@@ -66,10 +66,16 @@ git push
 **A**: 项目已改为通过环境变量读取密钥，建议在 GitHub 仓库设置中配置 **Secrets**（不要把密钥写进代码或提交到仓库）：
 1.  进入 Settings -> Secrets and variables -> Actions。
 2.  点击 "New repository secret"。
-3.  添加以下变量（名称必须一致）：
-    - `GEMINI_API_KEY`（Google Gemini）
-    - `SILICON_KEY`（SiliconFlow）
-    - `EMAIL_USER` / `EMAIL_PASS` / `EMAIL_TO`
+3.  依次添加以下变量（**Name** 必须完全一致）：
+
+    | Name (Secret 名称) | Value (填写说明) |
+    | :--- | :--- |
+    | `ZAI_API_KEY` | Z.AI 提供的 API Key (用于智能分析) |
+    | `OPENROUTER_API_KEY` | OpenRouter 提供的 API Key (备用/辅助模型) |
+    | `EMAIL_USER` | 发送日报的邮箱地址 (如 `xxx@qq.com`) |
+    | `EMAIL_PASS` | 邮箱 SMTP 授权码 (注意：不是登录密码) |
+    | `EMAIL_TO` | 接收日报的邮箱地址 |
+
 4.  工作流文件已在 `env:` 中引用这些 Secrets（见 [.github/workflows/run_daily.yml](file:///d:/Users/bys/Documents/GitHub/cbdc_tracker_work-secret/.github/workflows/run_daily.yml)）。
 
 本地运行建议使用 `.env` 文件（不要提交）：

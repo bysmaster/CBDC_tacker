@@ -6,7 +6,7 @@ from typing import Optional
 class ZaiClient:
     def __init__(self):
         # Using specific Z.AI key or falling back to general env var if we rename it later
-        self.api_key = os.environ.get("ZAI_API_KEY") or "a28d582b5e1b40028394a2bceadde530.cj0DNlFd1AFbOvMC"
+        self.api_key = os.environ.get("ZAI_API_KEY")
         self.base_url = "https://api.z.ai/api/paas/v4"
         self.model = "GLM-4.7-Flash" 
 

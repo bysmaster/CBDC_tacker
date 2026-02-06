@@ -197,6 +197,9 @@ def main():
         
         for tag in soup.select("dl > dt, dl > dd"):
             if tag.name == "dt":
+                # Reset date for new section to avoid carrying over previous date if parsing fails
+                current_date_str = None
+                
                 raw = tag.get_text(strip=True)
                 d = parse_date_text(raw)
                 if d:
@@ -206,6 +209,10 @@ def main():
                         # Found a date older than lookback window
                         # Since list is ordered, we can stop parsing
                         break
+                else:
+                    # Log warning if date parsing fails but we are in a date tag
+                    # This prevents assigning old news to previous date
+                    print(f"⚠️ [ECB] Failed to parse date: {raw}")
                 continue
 
             if tag.name == "dd" and current_date_str:

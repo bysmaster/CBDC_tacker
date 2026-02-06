@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src.utils import to_chinese_numeral
-from src.processor import AIProcessor
+from src.services.relevance_service import RelevanceService
 
 class TestUtils(unittest.TestCase):
     def test_to_chinese_numeral(self):
@@ -23,78 +23,68 @@ class TestUtils(unittest.TestCase):
         # Test fallback
         self.assertEqual(to_chinese_numeral(100), "100")
 
-class TestAIProcessor(unittest.TestCase):
+class TestRelevanceService(unittest.TestCase):
     def setUp(self):
-        # Patch environment variables if needed, or just mock the methods
-        self.processor = AIProcessor()
-        # Mock the internal API calls to avoid real network requests
-        self.processor.translate_content = MagicMock(return_value="Translated Content")
-        self.processor.analyze_relevance = MagicMock()
+        self.service = RelevanceService()
+        # Mock clients to avoid real API calls
+        self.service.zai = MagicMock()
+        self.service.openrouter = MagicMock()
 
-    def test_process_article_keyword_filter(self):
+    def test_assess_relevance_keyword_filter(self):
         # Test irrelevant keyword
         title = "Banana Prices"
         abstract = "Fruit market update"
         content = "Bananas are yellow."
         
-        result = self.processor.process_article(title, abstract, content)
+        result = self.service.assess_relevance(title, abstract, content)
         self.assertFalse(result['is_relevant'])
         self.assertEqual(result['reasoning'], "关键词不匹配 (No Keywords)")
-        self.assertEqual(result['confidence_score'], 0.0)
+        self.assertEqual(result['confidence'], 0.0)
 
-    def test_process_article_keyword_pass_ai_fail(self):
-        # Test relevant keyword but AI says no
-        title = "Digital Currency Update"
-        abstract = "CBDC is discussed."
-        content = "Some content about cbdc."
-        
-        # Mock analyze_relevance to return irrelevant
-        self.processor.analyze_relevance.return_value = {
-            "is_relevant": False,
-            "confidence_score": 0.1,
-            "reasoning": "Not about central bank",
-            "title_cn": "Title CN"
-        }
-        
-        result = self.processor.process_article(title, abstract, content)
-        self.assertFalse(result['is_relevant'])
-        self.assertEqual(result['reasoning'], "Not about central bank")
-
-    def test_process_article_keyword_pass_ai_pass(self):
-        # Test relevant keyword and AI says yes
+    def test_assess_relevance_ai_true(self):
+        # Test relevant keyword + AI returns True
         title = "Digital Euro Launch"
         abstract = "ECB launches digital euro."
         content = "cbdc content."
         
-        # Mock analyze_relevance to return relevant
-        self.processor.analyze_relevance.return_value = {
-            "is_relevant": True,
-            "confidence_score": 0.9,
-            "reasoning": "Core CBDC topic",
-            "title_cn": "Title CN"
-        }
+        # Mock Z.AI response
+        self.service.zai.chat_completion.return_value = '{"is_relevant": true, "confidence_score": 0.9, "title_cn": "数字欧元发布", "summary": "...", "reasoning": "Explicit mention"}'
+        # Mock OpenRouter response (can be anything, maybe failure)
+        self.service.openrouter.chat_completion.return_value = None 
         
-        result = self.processor.process_article(title, abstract, content)
+        result = self.service.assess_relevance(title, abstract, content)
         self.assertTrue(result['is_relevant'])
-        self.assertEqual(result['confidence_score'], 0.9)
+        self.assertEqual(result['confidence'], 0.9)
+        self.assertEqual(result['details']['zai']['status'], 'success')
+        self.assertEqual(result['details']['or']['status'], 'error')
 
-    def test_process_article_low_confidence(self):
-        # Test relevant keyword and AI says yes but low score
-        title = "Digital Euro Launch"
-        abstract = "ECB launches digital euro."
-        content = "cbdc content."
+    def test_assess_relevance_ai_false(self):
+        # Test relevant keyword but AI says False
+        title = "Crypto Market Crash"
+        abstract = "Bitcoin prices fell."
+        content = "cbdc mentioned but not focus."
         
-        # Mock analyze_relevance to return relevant but low score
-        self.processor.analyze_relevance.return_value = {
-            "is_relevant": True,
-            "confidence_score": 0.5, # < 0.6
-            "reasoning": "Mentioned briefly",
-            "title_cn": "Title CN"
-        }
+        # Mock both returning False
+        self.service.zai.chat_completion.return_value = '{"is_relevant": false, "confidence_score": 0.1, "reasoning": "Not CBDC"}'
+        self.service.openrouter.chat_completion.return_value = '{"is_relevant": false, "confidence_score": 0.2}'
         
-        result = self.processor.process_article(title, abstract, content)
+        result = self.service.assess_relevance(title, abstract, content)
         self.assertFalse(result['is_relevant'])
-        self.assertIn("置信度过低", result['reasoning'])
+        self.assertEqual(result['details']['zai']['is_relevant'], False)
+        self.assertEqual(result['details']['or']['is_relevant'], False)
+
+    def test_assess_relevance_all_apis_fail(self):
+        # Test connection error for both
+        title = "Digital Euro"
+        abstract = "CBDC"
+        content = "CBDC"
+        
+        self.service.zai.chat_completion.return_value = None
+        self.service.openrouter.chat_completion.return_value = None
+        
+        result = self.service.assess_relevance(title, abstract, content)
+        self.assertEqual(result['is_relevant'], "ERROR")
+        self.assertTrue(result['alert_needed'])
 
 if __name__ == '__main__':
     unittest.main()
