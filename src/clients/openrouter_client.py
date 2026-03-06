@@ -6,9 +6,8 @@ from typing import Optional
 class OpenRouterClient:
     def __init__(self):
         self.api_key = os.environ.get("OPENROUTER_API_KEY")
-        # Switch back to real OpenRouter endpoint
         self.base_url = "https://openrouter.ai/api/v1"
-        self.model = "openrouter/free" # Fallback to generic free router
+        self.model = "arcee-ai/trinity-large-preview:free"
 
     def chat_completion(self, prompt: str) -> Optional[str]:
         if not self.api_key:

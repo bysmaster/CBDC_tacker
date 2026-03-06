@@ -59,20 +59,20 @@ class RelevanceService:
             title_cn, summary, reasoning, confidence,
             details: { zai: {...}, or: {...} }
         """
-        # 1. Keyword Filter
-        full_text = (str(title) + " " + str(abstract) + " " + str(content)).lower()
-        if not any(k in full_text for k in self.KEYWORDS_CBDC):
-             return {
-                "is_relevant": False,
-                "reasoning": "关键词不匹配 (No Keywords)",
-                "confidence": 0.0,
-                "title_cn": title,
-                "summary": "",
-                "details": {
-                    "zai": {"is_relevant": False, "reason": "Skipped (Keyword)", "status": "skipped"},
-                    "or": {"is_relevant": False, "reason": "Skipped (Keyword)", "status": "skipped"}
-                }
-            }
+        # 1. Keyword Filter (Removed to ensure all news are processed by AI for summary)
+        # full_text = (str(title) + " " + str(abstract) + " " + str(content)).lower()
+        # if not any(k in full_text for k in self.KEYWORDS_CBDC):
+        #      return {
+        #         "is_relevant": False,
+        #         "reasoning": "关键词不匹配 (No Keywords)",
+        #         "confidence": 0.0,
+        #         "title_cn": title,
+        #         "summary": "",
+        #         "details": {
+        #             "zai": {"is_relevant": False, "reason": "Skipped (Keyword)", "status": "skipped"},
+        #             "or": {"is_relevant": False, "reason": "Skipped (Keyword)", "status": "skipped"}
+        #         }
+        #     }
 
         # 2. Prepare Prompt
         prompt = f"""

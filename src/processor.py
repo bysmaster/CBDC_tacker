@@ -53,6 +53,7 @@ def main(input_path=None, output_path=None):
     
     processing_results = []
     relevant_articles = []
+    all_articles_full = []  # Store full result objects for all articles
     alert_triggered = False
     alert_details = []
     
@@ -80,6 +81,19 @@ def main(input_path=None, output_path=None):
                 "alert_needed": True
             }
 
+        # Enrich result with metadata for reporting
+        result['url'] = url
+        result['entity'] = entity
+        result['original_title'] = title
+        result['original_abstract'] = abstract
+        # Ensure title/summary exist for report
+        if not result.get('title_cn'):
+            result['title_cn'] = title
+        if not result.get('summary'):
+            result['summary'] = abstract or content[:200]
+
+        all_articles_full.append(result)
+
         # Handle Result
         is_rel = result.get('is_relevant')
         confidence = result.get('confidence', 0.0)
@@ -99,8 +113,6 @@ def main(input_path=None, output_path=None):
         if is_rel is True:
             df.at[index, 'is_relevant'] = "TRUE"
             print(f"    ✅ RELEVANT ({confidence})")
-            result['url'] = url
-            result['entity'] = entity
             relevant_articles.append(result)
         elif is_rel == "ERROR":
             df.at[index, 'is_relevant'] = "ERROR"
@@ -197,15 +209,27 @@ def main(input_path=None, output_path=None):
         """
     html_table += "</tbody></table>"
 
-    # 6. Generate Report Doc
-    doc_path = None
-    if relevant_articles:
-        print(f"📝 Generating report with {len(relevant_articles)} articles...")
-        try:
-            doc_path = generate_word_report(relevant_articles, datetime.now().strftime("%Y-%m-%d"))
-            print(f"📄 Report saved: {doc_path}")
-        except Exception as e:
-            print(f"❌ Failed to generate report: {e}")
+    # 6. Generate Report Docs
+    attachments = []
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    
+    # Report 1: CBDC Relevant
+    print(f"📝 Generating CBDC report with {len(relevant_articles)} articles...")
+    try:
+        doc_path_cbdc = generate_word_report(all_articles_full, today_str, filename_prefix="CBDC_Report", filter_relevant=True)
+        print(f"📄 CBDC Report saved: {doc_path_cbdc}")
+        attachments.append(doc_path_cbdc)
+    except Exception as e:
+        print(f"❌ Failed to generate CBDC report: {e}")
+
+    # Report 2: All News
+    print(f"📝 Generating All News report with {len(all_articles_full)} articles...")
+    try:
+        doc_path_all = generate_word_report(all_articles_full, today_str, filename_prefix="All_News_Report", filter_relevant=False)
+        print(f"📄 All News Report saved: {doc_path_all}")
+        attachments.append(doc_path_all)
+    except Exception as e:
+        print(f"❌ Failed to generate All News report: {e}")
 
     # 7. Send Email (Normal or Alert)
     print("📧 Sending email...")
@@ -232,7 +256,7 @@ def main(input_path=None, output_path=None):
         # We can append alert details to HTML
         html_table = f"<h2>⚠️ API Critical Failure Alert</h2><pre>{chr(10).join(alert_details[:10])}</pre>" + html_table
     
-    send_email_with_attachment(doc_path, csv_content_html=html_table, stats=stats)
+    send_email_with_attachment(attachments, csv_content_html=html_table, stats=stats)
     print("🏁 Done.")
 
 if __name__ == "__main__":

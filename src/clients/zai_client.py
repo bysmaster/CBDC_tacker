@@ -7,8 +7,8 @@ class ZaiClient:
     def __init__(self):
         # Using specific Z.AI key or falling back to general env var if we rename it later
         self.api_key = os.environ.get("ZAI_API_KEY")
-        self.base_url = "https://api.z.ai/api/paas/v4"
-        self.model = "GLM-4.7-Flash" 
+        self.base_url = "https://open.bigmodel.cn/api/paas/v4"
+        self.model = "glm-4.7-flash" # As requested by user 
 
     def chat_completion(self, prompt: str) -> Optional[str]:
         if not self.api_key:
