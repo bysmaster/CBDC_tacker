@@ -61,8 +61,10 @@ def get_lookback_date_range() -> Tuple[datetime, datetime]:
     Return the start and end datetime for the lookback period.
     Default: Today (00:00:00) to Now, plus Yesterday (00:00:00 to 23:59:59).
     Effectively covers [Yesterday 00:00:00, Now].
+    
+    Uses UTC time to match GitHub Actions server time.
     """
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     yesterday_start = today_start - timedelta(days=1)
     # User requested: "current day + previous day" (2 days total)
@@ -156,7 +158,7 @@ def write_incremental_csv(
     append_new: bool = False,
 ) -> int:
     """
-    Write standard incremental output.
+    Write standard incremental output with improved stability.
     - new_csv: 
         If append_new=False (default): overwritten each run with ONLY the new items from this run.
         If append_new=True: appended with the new items (useful when multiple scrapers write to same new_csv).
@@ -164,9 +166,16 @@ def write_incremental_csv(
     
     Returns number of NEW rows written.
     """
+    import tempfile
+    import shutil
+    
     ensure_csv_field_size_limit()
     all_csv = Path(all_csv)
     new_csv = Path(new_csv)
+    
+    # Ensure data directory exists
+    all_csv.parent.mkdir(parents=True, exist_ok=True)
+    new_csv.parent.mkdir(parents=True, exist_ok=True)
 
     # 1. Load existing keys to dedupe
     existing_uids, existing_urls = load_existing_keys(all_csv)
@@ -175,7 +184,6 @@ def write_incremental_csv(
     filtered: List[Dict[str, str]] = []
     for r in rows:
         # Ensure all standard fields exist, default to empty string
-        # User requested preserving newlines for text fields.
         clean_row = {}
         for k in fields:
             val = r.get(k, "")
@@ -203,47 +211,80 @@ def write_incremental_csv(
     if not filtered:
         return 0
 
-    # 3. Write new_csv
-    # If append_new is True, we append to new_csv, else we overwrite
+    # 3. Write new_csv with atomic operation
     new_mode = "a" if append_new and new_csv.exists() and new_csv.stat().st_size > 0 else "w"
-    
-    # Check if we need header for new_csv
     new_need_header = True
-    if new_mode == "a":
-        # If appending, only write header if file is empty or doesn't exist (handled by new_mode logic mostly, but let's be safe)
-        if new_csv.exists() and new_csv.stat().st_size > 0:
-            new_need_header = False
+    if new_mode == "a" and new_csv.exists() and new_csv.stat().st_size > 0:
+        new_need_header = False
 
-    with new_csv.open(new_mode, encoding="utf-8-sig", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=list(fields), quoting=csv.QUOTE_ALL, extrasaction="ignore")
-        if new_need_header:
-            writer.writeheader()
-        for r in filtered:
-            writer.writerow(r)
+    try:
+        # Use temp file for atomic write
+        temp_new_csv = new_csv.with_suffix('.tmp')
+        
+        # If appending, copy existing content first
+        if new_mode == "a" and new_csv.exists():
+            shutil.copy2(new_csv, temp_new_csv)
+        
+        with temp_new_csv.open(new_mode, encoding="utf-8-sig", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=list(fields), quoting=csv.QUOTE_ALL, extrasaction="ignore")
+            if new_need_header:
+                writer.writeheader()
+            for r in filtered:
+                writer.writerow(r)
+        
+        # Atomic replace
+        temp_new_csv.replace(new_csv)
+        
+        # Validate after successful write
+        if not validate_csv_format(new_csv, fields):
+            print(f"[CSV Warning] Validation failed for {new_csv.name}, but file was written")
+    except Exception as e:
+        print(f"[CSV Error] Failed to write {new_csv.name}: {e}")
+        # Clean up temp file if exists
+        if 'temp_new_csv' in locals() and temp_new_csv.exists():
+            temp_new_csv.unlink()
+        raise
+
+    # 4. Append to all_csv with atomic operation
+    try:
+        need_header = not all_csv.exists() or all_csv.stat().st_size == 0
+        
+        # Check if header matches if file exists
+        if not need_header:
+            header = _read_header(all_csv)
+            if header and [h.strip() for h in header] != list(fields):
+                # Header mismatch - create backup and start fresh
+                backup_path = all_csv.with_name(all_csv.stem + "_backup_" + datetime.now().strftime("%Y%m%d%H%M%S") + all_csv.suffix)
+                shutil.copy2(all_csv, backup_path)
+                print(f"[CSV Info] Header mismatch detected, backed up to {backup_path.name}")
+                need_header = True
+
+        temp_all_csv = all_csv.with_suffix('.all.tmp')
+        
+        # If appending, copy existing content first
+        if not need_header and all_csv.exists():
+            shutil.copy2(all_csv, temp_all_csv)
+        
+        with temp_all_csv.open("a" if not need_header else "w", encoding="utf-8-sig", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=list(fields), quoting=csv.QUOTE_ALL, extrasaction="ignore")
+            if need_header:
+                writer.writeheader()
+            for r in filtered:
+                writer.writerow(r)
+        
+        # Atomic replace
+        temp_all_csv.replace(all_csv)
+        
+        # Validate after successful write
+        if not validate_csv_format(all_csv, fields):
+            print(f"[CSV Warning] Validation failed for {all_csv.name}, but file was written")
             
-    # Validate new_csv immediately
-    validate_csv_format(new_csv, fields)
-
-    # 4. Append to all_csv
-    need_header = not all_csv.exists() or all_csv.stat().st_size == 0
-    # Check if header matches if file exists
-    if not need_header:
-        header = _read_header(all_csv)
-        if header and [h.strip() for h in header] != list(fields):
-            # Header mismatch backup
-            all_csv = all_csv.with_name(all_csv.stem + "_v2" + all_csv.suffix)
-            need_header = not all_csv.exists() or all_csv.stat().st_size == 0
-
-    mode = "a" if all_csv.exists() and not need_header else "w"
-    with all_csv.open(mode, encoding="utf-8-sig", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=list(fields), quoting=csv.QUOTE_ALL, extrasaction="ignore")
-        if need_header:
-            writer.writeheader()
-        for r in filtered:
-            writer.writerow(r)
-            
-    # Validate all_csv immediately
-    validate_csv_format(all_csv, fields)
+    except Exception as e:
+        print(f"[CSV Error] Failed to write {all_csv.name}: {e}")
+        # Clean up temp file if exists
+        if 'temp_all_csv' in locals() and temp_all_csv.exists():
+            temp_all_csv.unlink()
+        raise
 
     return len(filtered)
 
