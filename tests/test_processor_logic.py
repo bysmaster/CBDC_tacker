@@ -31,15 +31,18 @@ class TestRelevanceService(unittest.TestCase):
         self.service.openrouter = MagicMock()
 
     def test_assess_relevance_keyword_filter(self):
-        # Test irrelevant keyword
+        # Test irrelevant keyword - Keyword filter was removed to ensure all news are processed by AI for summary
+        # Now all articles go through AI analysis regardless of keywords
         title = "Banana Prices"
         abstract = "Fruit market update"
         content = "Bananas are yellow."
         
+        # Mock both APIs returning False (not relevant)
+        self.service.zai.chat_completion.return_value = '{"is_relevant": false, "confidence_score": 0.1, "reasoning": "Not CBDC related"}'
+        self.service.openrouter.chat_completion.return_value = '{"is_relevant": false, "confidence_score": 0.2}'
+        
         result = self.service.assess_relevance(title, abstract, content)
         self.assertFalse(result['is_relevant'])
-        self.assertEqual(result['reasoning'], "关键词不匹配 (No Keywords)")
-        self.assertEqual(result['confidence'], 0.0)
 
     def test_assess_relevance_ai_true(self):
         # Test relevant keyword + AI returns True

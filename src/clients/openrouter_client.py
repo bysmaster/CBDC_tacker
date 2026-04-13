@@ -3,6 +3,14 @@ import requests
 import time
 from typing import Optional
 
+def safe_print(msg: str):
+    """Print message safely handling encoding issues on Windows."""
+    try:
+        print(msg)
+    except UnicodeEncodeError:
+        # Fallback to ASCII-only output
+        print(msg.encode('ascii', 'ignore').decode('ascii'))
+
 class OpenRouterClient:
     def __init__(self):
         self.api_key = os.environ.get("OPENROUTER_API_KEY")
@@ -11,7 +19,7 @@ class OpenRouterClient:
 
     def chat_completion(self, prompt: str) -> Optional[str]:
         if not self.api_key:
-            print("⚠️ OPENROUTER_API_KEY not found.")
+            safe_print("[OpenRouter] OPENROUTER_API_KEY not found.")
             return None
 
         headers = {
@@ -20,7 +28,7 @@ class OpenRouterClient:
             "HTTP-Referer": "https://github.com/cbdc-tracker",
             "X-Title": "CBDC Tracker"
         }
-        
+
         payload = {
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
@@ -40,12 +48,11 @@ class OpenRouterClient:
             for attempt in range(3):
                 try:
                     url = f"{self.base_url.rstrip('/')}/chat/completions"
-                    # print(f"DEBUG: Connecting to OpenRouter at {url}...")
                     response = requests.post(
                         url,
                         headers=headers,
                         json=payload,
-                        proxies=proxies, # Explicitly pass proxies
+                        proxies=proxies,
                         timeout=60
                     )
                     response.raise_for_status()
@@ -53,15 +60,15 @@ class OpenRouterClient:
                     if 'choices' in data and len(data['choices']) > 0:
                         return data['choices'][0]['message']['content']
                     else:
-                        print(f"⚠️ [OpenRouter] Invalid response format: {data}")
+                        safe_print(f"[OpenRouter] Invalid response format: {data}")
                         return None
                 except requests.exceptions.RequestException as e:
-                    print(f"⚠️ [OpenRouter] Attempt {attempt+1} failed: {e}")
+                    safe_print(f"[OpenRouter] Attempt {attempt+1} failed: {e}")
                     if attempt < 2:
                         time.sleep(2)
                     else:
-                        print(f"❌ [OpenRouter] All retries failed.")
+                        safe_print("[OpenRouter] All retries failed.")
                         return None
         except Exception as e:
-            print(f"❌ [OpenRouter] Unexpected error: {e}")
+            safe_print(f"[OpenRouter] Unexpected error: {e}")
             return None

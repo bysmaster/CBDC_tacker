@@ -3,16 +3,24 @@ import requests
 import time
 from typing import Optional
 
+def safe_print(msg: str):
+    """Print message safely handling encoding issues on Windows."""
+    try:
+        print(msg)
+    except UnicodeEncodeError:
+        # Fallback to ASCII-only output
+        print(msg.encode('ascii', 'ignore').decode('ascii'))
+
 class ZaiClient:
     def __init__(self):
         # Using specific Z.AI key or falling back to general env var if we rename it later
         self.api_key = os.environ.get("ZAI_API_KEY")
         self.base_url = "https://open.bigmodel.cn/api/paas/v4"
-        self.model = "glm-4.7-flash" # As requested by user 
+        self.model = "glm-4.7-flash" # As requested by user
 
     def chat_completion(self, prompt: str) -> Optional[str]:
         if not self.api_key:
-            print("⚠️ ZAI_API_KEY not found.")
+            safe_print("[Z.AI] ZAI_API_KEY not found.")
             return None
 
         headers = {
@@ -20,7 +28,7 @@ class ZaiClient:
             "Content-Type": "application/json",
             "Accept-Language": "en-US,en"
         }
-        
+
         payload = {
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
@@ -44,19 +52,19 @@ class ZaiClient:
                         url,
                         headers=headers,
                         json=payload,
-                        proxies=proxies, # Explicitly pass proxies
+                        proxies=proxies,
                         timeout=60
                     )
                     response.raise_for_status()
                     data = response.json()
                     return data['choices'][0]['message']['content']
                 except requests.exceptions.RequestException as e:
-                    print(f"⚠️ [Z.AI] Attempt {attempt+1} failed: {e}")
+                    safe_print(f"[Z.AI] Attempt {attempt+1} failed: {e}")
                     if attempt < 2:
-                        time.sleep(2) # Short wait
+                        time.sleep(2)
                     else:
-                        print(f"❌ [Z.AI] All retries failed.")
+                        safe_print("[Z.AI] All retries failed.")
                         return None
         except Exception as e:
-            print(f"❌ [Z.AI] Unexpected error: {e}")
+            safe_print(f"[Z.AI] Unexpected error: {e}")
             return None
